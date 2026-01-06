@@ -1,160 +1,214 @@
-// Artifact JSX (optionnel) — Checklist UI “step-by-step” pour suivre V1
-// Usage : coller dans une page React (ex: Next.js / Vite) et adapter si besoin.
+import { useEffect, useMemo, useState } from "react";
+import "./DpV1Checklist.css";
 
-import React, { useMemo, useState } from "react";
+const STORAGE_KEY = "dp_v1_checklist_v3";
+const THEME_KEY = "dp_v1_theme";
 
-const SECTIONS = [
+const PHASES = [
   {
     id: "A",
+    className: "phaseA",
     title: "Phase A — Baseline & garde-fous",
+    tag: "Sécurité",
     items: [
-      "Repo de travail prêt (branche dédiée patch-carto-dp1-dp2)",
-      "_outputs/ créé",
-      "PDF baseline PROD (depuis /dp) archivé",
-      "PDF baseline LOCAL (depuis repo) archivé",
-      "Comparaison DP1/DP2 baseline validée",
+      { id: "A1", text: "Repo de travail cloné (branche dédiée)" },
+      { id: "A2", text: "Dossier _outputs/ créé" },
+      { id: "A3", text: "PDF baseline PROD archivé (depuis /dp)" },
+      { id: "A4", text: "PDF baseline LOCAL archivé (repo)" },
+      { id: "A5", text: "Comparaison DP1 / DP2 baseline validée" },
     ],
   },
   {
     id: "B",
-    title: "Phase B — Carto DP1/DP2 : plus de placeholder",
+    className: "phaseB",
+    title: "Phase B — Cartographie DP1 / DP2",
+    tag: "Carto",
     items: [
-      "Endpoint WMS corrigé (wms-r/wms)",
-      "PDF après fix : DP1 fond visible",
-      "PDF après fix : DP2 fond visible",
+      { id: "B1", text: "WMS cadastre IGN corrigé (endpoint fonctionnel)" },
+      { id: "B2", text: "DP1 : placeholders supprimés (fond visible)" },
+      { id: "B3", text: "DP2 : placeholders supprimés (fond visible)" },
     ],
   },
   {
     id: "C",
-    title: "Phase C — DP2A complet",
+    className: "phaseC",
+    title: "Phase C — DP2A (Plan de masse AVANT)",
+    tag: "Avant",
     items: [
-      "Contour parcelle tracé sur DP2A",
-      "Highlight zone toit si dispo (sinon skip)",
-      "PDF après C : DP2A exploitable",
+      { id: "C1", text: "Limites de propriété tracées sur DP2A" },
+      { id: "C2", text: "Pan de toit concerné mis en évidence (si dispo, sinon skip)" },
+      { id: "C3", text: "PDF DP2A exploitable mairie" },
     ],
   },
   {
     id: "D",
-    title: "Phase D — DP2B complet",
+    className: "phaseD",
+    title: "Phase D — DP2B (Plan de masse APRÈS)",
+    tag: "Après",
     items: [
-      "Ajout panneaux (N exact = input UI)",
-      "PDF après D : DP2B ≠ DP2A et correct",
-    ],
-  },
-  {
-    id: "E",
-    title: "Phase E — Non-régression produit (variables)",
-    items: [
-      "Société OK",
-      "Maître d’ouvrage OK",
-      "Logo upload OK",
-      "Pages DP4+ inchangées (spot check)",
-    ],
-  },
-  {
-    id: "F",
-    title: "Phase F — GitHub & traçabilité",
-    items: [
-      "Repo GitHub créé ou branche pushée",
-      "README + runbook + checklist",
-      "Captures/PDF avant-après ajoutés (ou liens)",
-      "Tag release v1.0-patch-carto",
+      { id: "D1", text: "Panneaux ajoutés (nombre exact = input UI)" },
+      { id: "D2", text: "DP2B différent de DP2A (visuellement)" },
+      { id: "D3", text: "PDF final validé" },
     ],
   },
 ];
 
-function storageKey(sectionId, idx) {
-  return `dp_v1_${sectionId}_${idx}`;
+function safeLoad(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export default function DpV1Checklist() {
-  const initial = useMemo(() => {
-    const state = {};
-    for (const s of SECTIONS) {
-      s.items.forEach((_, idx) => {
-        const key = storageKey(s.id, idx);
-        state[key] = localStorage.getItem(key) === "1";
-      });
-    }
-    return state;
+  const allItems = useMemo(() => PHASES.flatMap((p) => p.items), []);
+  const total = allItems.length;
+
+  const [checked, setChecked] = useState({});
+  const [theme, setTheme] = useState("dark");
+
+  useEffect(() => {
+    setChecked(safeLoad(STORAGE_KEY, {}));
+    const t = localStorage.getItem(THEME_KEY);
+    setTheme(t === "light" ? "light" : "dark");
   }, []);
 
-  const [checked, setChecked] = useState(initial);
-
-  const toggle = (key) => {
-    setChecked((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      localStorage.setItem(key, next[key] ? "1" : "0");
-      return next;
-    });
-  };
-
-  const total = useMemo(() => {
-    let t = 0;
-    SECTIONS.forEach((s) => (t += s.items.length));
-    return t;
-  }, []);
-
-  const done = useMemo(() => {
-    let d = 0;
-    Object.values(checked).forEach((v) => v && d++);
-    return d;
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(checked));
+    } catch {}
   }, [checked]);
 
-  return (
-    <div style={{ fontFamily: "system-ui, Arial", padding: 20, maxWidth: 900 }}>
-      <h1 style={{ margin: 0 }}>DP Generator — Roadmap V1 (DP1 + DP2)</h1>
-      <p style={{ marginTop: 8 }}>
-        Patch minimal : corriger carto DP1 + compléter DP2A/DP2B sans casser le
-        reste.
-      </p>
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_KEY, theme);
+    } catch {}
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
-      <div style={{ margin: "14px 0", padding: 12, border: "1px solid #ddd", borderRadius: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div><b>Progress</b> : {done}/{total}</div>
+  const doneCount = useMemo(
+    () => allItems.reduce((acc, it) => acc + (checked[it.id] ? 1 : 0), 0),
+    [allItems, checked]
+  );
+
+  const pct = total ? Math.round((doneCount / total) * 100) : 0;
+
+  function toggle(id) {
+    setChecked((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
+
+  function resetAll() {
+    setChecked({});
+  }
+
+  function checkAll() {
+    const next = {};
+    for (const it of allItems) next[it.id] = true;
+    setChecked(next);
+  }
+
+  function toggleTheme() {
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
+  }
+
+  return (
+    <div className="dp-page">
+      <div className="dp-container">
+        <div className="dp-hero">
           <div>
-            <b>Prod</b> :{" "}
-            <a href="https://solaire-dp-generator-29459740400.europe-west1.run.app/dp/" target="_blank" rel="noreferrer">
-              /dp
-            </a>
+            <h1>DP Generator — Roadmap V1</h1>
+            <p className="subtitle">
+              Patch minimal : <b>DP1 + DP2 (DP2A / DP2B)</b> sans casser l’existant
+            </p>
+
+            <div className="badgeRow">
+              <span className="badge">
+                <strong>Prod</strong> /dp
+              </span>
+              <span className="badge">
+                <strong>Progress</strong> {doneCount}/{total} ({pct}%)
+              </span>
+              <span className="badge">
+                <strong>Règle</strong> une étape = un PDF comparé
+              </span>
+            </div>
+
+            <div className="progressWrap">
+              <div className="progressTop">
+                <span>Avancement</span>
+                <span>{pct}%</span>
+              </div>
+              <div className="bar">
+                <div style={{ width: `${pct}%` }} />
+              </div>
+              <div className="actions">
+                <button className="btn" onClick={checkAll} type="button">
+                  Tout cocher
+                </button>
+                <button className="btn" onClick={resetAll} type="button">
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="themeToggle">
+            <div className="toggleLabel">Mode {theme === "dark" ? "nuit" : "jour"}</div>
+            <button
+              className="switch"
+              type="button"
+              onClick={toggleTheme}
+              data-on={theme === "light"}
+              aria-label="Basculer thème"
+            >
+              <span className="knob" />
+            </button>
           </div>
         </div>
-        <div style={{ marginTop: 10, height: 10, background: "#eee", borderRadius: 999 }}>
-          <div
-            style={{
-              width: `${Math.round((done / total) * 100)}%`,
-              height: "100%",
-              borderRadius: 999,
-              background: "#111",
-            }}
-          />
+
+        <div className="grid">
+          {PHASES.map((phase) => (
+            <div key={phase.id} className={`card ${phase.className}`}>
+              <div className="card-header">
+                <h2>{phase.title}</h2>
+                <span className="tag">
+                  <span className="dot" /> {phase.tag}
+                </span>
+              </div>
+
+              <div className="checklist">
+                {phase.items.map((it) => {
+                  const isDone = !!checked[it.id];
+                  return (
+                    <div key={it.id} className={`item ${isDone ? "done" : ""}`}>
+                      <div className="item-left">
+                        <input
+                          className="cb"
+                          type="checkbox"
+                          checked={isDone}
+                          onChange={() => toggle(it.id)}
+                        />
+                        <div>
+                          <div className="item-text">{it.text}</div>
+                          <div className="item-meta">{it.id}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="footer-hint">
+          Checkpoints sauvegardés automatiquement (localStorage). Thème aussi.
         </div>
       </div>
-
-      {SECTIONS.map((s) => (
-        <div key={s.id} style={{ marginBottom: 16, border: "1px solid #ddd", borderRadius: 12, padding: 14 }}>
-          <h2 style={{ margin: 0, fontSize: 18 }}>{s.title}</h2>
-          <ul style={{ listStyle: "none", paddingLeft: 0, marginTop: 10, marginBottom: 0 }}>
-            {s.items.map((label, idx) => {
-              const key = storageKey(s.id, idx);
-              const isChecked = !!checked[key];
-              return (
-                <li key={key} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0" }}>
-                  <input
-                    type="checkbox"
-                    checked={isChecked}
-                    onChange={() => toggle(key)}
-                    style={{ marginTop: 3 }}
-                  />
-                  <span style={{ textDecoration: isChecked ? "line-through" : "none", opacity: isChecked ? 0.7 : 1 }}>
-                    {label}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
     </div>
   );
 }
